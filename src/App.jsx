@@ -1,3 +1,4 @@
+import pdfToText from 'react-pdftotext';
 import React, { useState } from 'react';
 import { 
   FileText, 
@@ -60,9 +61,16 @@ export default function App() {
   // Handlers
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setUploadedFile(file.name);
-    }
+    if (!file) return;
+
+    pdfToText(file)
+      .then((text) => {
+        setUploadedFile(file.name);
+        setResumeText(text);
+      })
+      .catch((error) => {
+        console.error('Erro ao ler PDF:', error);
+      });
   };
 
 const handleMatchAnalysis = () => {
