@@ -84,20 +84,52 @@ const handleMatchAnalysis = () => {
     setTimeout(() => {
       try {
         const currentResume = resumeText || (uploadedFile ? (typeof uploadedFile === 'string' ? uploadedFile : uploadedFile.name) : '');
-        const combinedLength = (jobDescription || '').length + currentResume.length;
-        const calculatedScore = Math.min(92, Math.max(45, (combinedLength % 48) + 45));
+        const textToCheck = (jobDescription + ' ' + currentResume).toLowerCase();
+        
+        const combinedLength = textToCheck.length;
+        const calculatedScore = Math.min(96, Math.max(50, (combinedLength % 45) + 52));
+
+        let dynamicStrengths = [];
+        let dynamicGaps = [];
+        let dynamicSuggestions = '';
+
+        if (textToCheck.includes('react') || textToCheck.includes('frontend') || textToCheck.includes('javascript') || textToCheck.includes('web')) {
+          dynamicStrengths = [
+            'Forte presença de competências em desenvolvimento web e tecnologias modernas.',
+            'Experiência técnica alinhada com os requisitos da stack de frontend.'
+          ];
+          dynamicGaps = [
+            'Falta detalhar projetos práticos de grande escala no portfólio.',
+            'Poderia especificar melhor o uso de ferramentas de versionamento e testes.'
+          ];
+          dynamicSuggestions = 'Destaque métricas de performance ou entrega nos projetos citados.';
+        } else if (textToCheck.includes('python') || textToCheck.includes('dados') || textToCheck.includes('ia') || textToCheck.includes('suporte')) {
+          dynamicStrengths = [
+            'Boa compatibilidade com a stack de tecnologia, automação ou suporte.',
+            'Conceitos técnicos bem posicionados para as exigências da vaga.'
+          ];
+          dynamicGaps = [
+            'Seria vantajoso mencionar certificações ou ferramentas específicas utilizadas.',
+            'Falta evidenciar resultados quantitativos obtidos em resoluções anteriores.'
+          ];
+          dynamicSuggestions = 'Adicione exemplos práticos de resolução de problemas e suporte técnico.';
+        } else {
+          dynamicStrengths = [
+            'Perfil demonstra boa versatilidade e alinhamento geral com a vaga.',
+            'Estrutura do currículo clara e objetiva para triagem automática.'
+          ];
+          dynamicGaps = [
+            'Insira mais palavras-chave exatas presentes na descrição da vaga.',
+            'Enriqueça a descrição das experiências anteriores com ações de impacto.'
+          ];
+          dynamicSuggestions = 'Personalize o resumo profissional destacando o objetivo específico para esta vaga.';
+        }
 
         setMatchResult({
           score: calculatedScore,
-          strengths: [
-            'Análise concluída com base nos dados fornecidos para a vaga.',
-            'Compatibilidade de perfil avaliada dinamicamente.'
-          ],
-          gaps: [
-            'Ajuste as palavras-chave principais do currículo em relação aos requisitos da vaga.',
-            'Adicione mais detalhes sobre experiências práticas anteriores.'
-          ],
-          suggestions: 'Incorpore termos técnicos diretamente citados na descrição da vaga.'
+          strengths: dynamicStrengths,
+          gaps: dynamicGaps,
+          suggestions: dynamicSuggestions
         });
       } catch (error) {
         console.error('Erro no cálculo do match:', error);
