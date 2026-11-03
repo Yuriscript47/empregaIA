@@ -31,6 +31,7 @@ export default function App() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [matchResult, setMatchResult] = useState(null);
   const [loadingMatch, setLoadingMatch] = useState(false);
+  const [matchError, setMatchError] = useState('');
 
   // States - Simulador de Entrevista
   const [interviewMessages, setInterviewMessages] = useState([
@@ -59,84 +60,46 @@ export default function App() {
   const [botConnected, setBotConnected] = useState(false);
 
   // Handlers
-  const handleFileUpload = (e) => {
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    pdfToText(file)
-      .then((text) => {
-        setUploadedFile(file.name);
-        setResumeText(text);
-      })
-      .catch((error) => {
-        console.error('Erro ao ler PDF:', error);
-      });
+    try {
+      const text = file.name.toLowerCase().endsWith('.txt')
+        ? await file.text()
+        : await pdfToText(file);
+      setUploadedFile(file.name);
+      setResumeText(text);
+    } catch (error) {
+      console.error('Erro ao ler arquivo:', error);
+      alert('Não foi possível ler o arquivo. Tente colar o texto do currículo.');
+    }
   };
 
-const handleMatchAnalysis = () => {
-    if (!jobDescription || (!resumeText && !uploadedFile)) {
-      alert('Por favor, insira a descrição da vaga e o currículo.');
+  const handleMatchAnalysis = async () => {
+    if (!jobDescription.trim() || !resumeText.trim()) {
+      alert('Por favor, insira a descrição da vaga e o currículo (envie um PDF ou cole o texto).');
       return;
     }
 
     setLoadingMatch(true);
+    setMatchResult(null);
+    setMatchError('');
 
-    setTimeout(() => {
-      try {
-        const currentResume = resumeText || (uploadedFile ? (typeof uploadedFile === 'string' ? uploadedFile : uploadedFile.name) : '');
-        const textToCheck = (jobDescription + ' ' + currentResume).toLowerCase();
-        
-        const combinedLength = textToCheck.length;
-        const calculatedScore = Math.min(96, Math.max(50, (combinedLength % 45) + 52));
-
-        let dynamicStrengths = [];
-        let dynamicGaps = [];
-        let dynamicSuggestions = '';
-
-        if (textToCheck.includes('react') || textToCheck.includes('frontend') || textToCheck.includes('javascript') || textToCheck.includes('web')) {
-          dynamicStrengths = [
-            'Forte presença de competências em desenvolvimento web e tecnologias modernas.',
-            'Experiência técnica alinhada com os requisitos da stack de frontend.'
-          ];
-          dynamicGaps = [
-            'Falta detalhar projetos práticos de grande escala no portfólio.',
-            'Poderia especificar melhor o uso de ferramentas de versionamento e testes.'
-          ];
-          dynamicSuggestions = 'Destaque métricas de performance ou entrega nos projetos citados.';
-        } else if (textToCheck.includes('python') || textToCheck.includes('dados') || textToCheck.includes('ia') || textToCheck.includes('suporte')) {
-          dynamicStrengths = [
-            'Boa compatibilidade com a stack de tecnologia, automação ou suporte.',
-            'Conceitos técnicos bem posicionados para as exigências da vaga.'
-          ];
-          dynamicGaps = [
-            'Seria vantajoso mencionar certificações ou ferramentas específicas utilizadas.',
-            'Falta evidenciar resultados quantitativos obtidos em resoluções anteriores.'
-          ];
-          dynamicSuggestions = 'Adicione exemplos práticos de resolução de problemas e suporte técnico.';
-        } else {
-          dynamicStrengths = [
-            'Perfil demonstra boa versatilidade e alinhamento geral com a vaga.',
-            'Estrutura do currículo clara e objetiva para triagem automática.'
-          ];
-          dynamicGaps = [
-            'Insira mais palavras-chave exatas presentes na descrição da vaga.',
-            'Enriqueça a descrição das experiências anteriores com ações de impacto.'
-          ];
-          dynamicSuggestions = 'Personalize o resumo profissional destacando o objetivo específico para esta vaga.';
-        }
-
-        setMatchResult({
-          score: calculatedScore,
-          strengths: dynamicStrengths,
-          gaps: dynamicGaps,
-          suggestions: dynamicSuggestions
-        });
-      } catch (error) {
-        console.error('Erro no cálculo do match:', error);
-      } finally {
-        setLoadingMatch(false);
-      }
-    }, 1500);
+    try {
+      const resp = await fetch('/api/analisar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vaga: jobDescription, curriculo: resumeText }),
+      });
+      if (!resp.ok) throw new Error('Erro na análise');
+      setMatchResult(await resp.json());
+    } catch (error) {
+      console.error(error);
+      setMatchError('Não foi possível analisar agora. Tente novamente.');
+    } finally {
+      setLoadingMatch(false);
+    }
   };
 
   const handleSendInterviewMessage = () => {
@@ -293,7 +256,7 @@ const handleMatchAnalysis = () => {
               <div className="bg-[#0f1527] border border-slate-800/80 rounded-2xl p-6 sm:p-8 space-y-3">
                 <div className="inline-flex items-center space-x-2 bg-indigo-950/60 border border-indigo-800/50 rounded-full px-3 py-1 text-xs font-semibold text-indigo-300">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>Análise Inteligente ATS Multi-formato</span>
+                  <span>Análise Inteligente ATS</span>
                 </div>
 
                 <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
@@ -301,7 +264,7 @@ const handleMatchAnalysis = () => {
                 </h1>
 
                 <p className="text-sm text-slate-400 max-w-3xl leading-relaxed">
-                  Nossa IA analisa o currículo do candidato (suporta PDF, PNG, JPG, DOCX, TXT) contra as exigências exatas da vaga. Calcule o índice de compatibilidade e receba trilhas de estudos sob medida.
+                  Nossa IA analisa o currículo do candidato (suporta PDF e TXT) contra as exigências exatas da vaga. Calcule o índice de compatibilidade e receba recomendações sob medida para a vaga.
                 </p>
               </div>
 
@@ -329,18 +292,18 @@ const handleMatchAnalysis = () => {
                     <FileText className="w-5 h-5 text-indigo-400" />
                     <span>Currículo do Candidato</span>
                   </div>
-                  <span className="text-xs text-slate-500 font-mono">PDF, PNG, JPG, TXT, DOCX</span>
+                  <span className="text-xs text-slate-500 font-mono">PDF, TXT</span>
                 </div>
 
                 <label className="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 bg-[#090d1a]/50 hover:bg-[#090d1a] rounded-2xl p-8 flex flex-col items-center justify-center cursor-pointer transition text-center group">
-                  <input type="file" onChange={handleFileUpload} accept=".pdf,.png,.jpg,.jpeg,.txt,.docx" className="hidden" />
+                  <input type="file" onChange={handleFileUpload} accept=".pdf,.txt" className="hidden" />
                   <div className="w-12 h-12 bg-slate-900 group-hover:bg-indigo-600/10 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-indigo-400 transition mb-3">
                     <Upload className="w-6 h-6" />
                   </div>
                   <div className="text-sm font-semibold text-slate-200">
                     {uploadedFile ? `Arquivo Selecionado: ${uploadedFile}` : 'Arraste seu arquivo aqui ou clique para selecionar'}
                   </div>
-                  <p className="text-xs text-slate-500 mt-1">Compatível com todos os formatos de arquivo de currículo</p>
+                  <p className="text-xs text-slate-500 mt-1">Aceitamos arquivos PDF e TXT</p>
                 </label>
 
                 <div className="relative flex items-center justify-center py-1">
@@ -374,15 +337,35 @@ const handleMatchAnalysis = () => {
                 )}
               </button>
 
+              {matchError && (
+                <div className="bg-red-950/30 border border-red-800/40 rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center space-x-3 text-red-300 text-sm">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <span>{matchError}</span>
+                  </div>
+                  <button
+                    onClick={handleMatchAnalysis}
+                    disabled={loadingMatch}
+                    className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-sm font-semibold rounded-xl transition"
+                  >
+                    {loadingMatch ? 'Tentando...' : 'Tentar novamente'}
+                  </button>
+                </div>
+              )}
+
               <div className="bg-[#0f1527] border border-slate-800/80 rounded-2xl p-8 min-h-[220px] flex items-center justify-center">
                 {!matchResult ? (
                   <div className="text-center space-y-3 py-4">
                     <div className="w-14 h-14 bg-slate-900 border border-slate-800 rounded-2xl flex items-center justify-center text-slate-400 mx-auto">
                       <Target className="w-7 h-7" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-200">Aguardando Análise</h3>
+                    <h3 className="text-lg font-bold text-slate-200">
+                      {loadingMatch ? 'Analisando...' : 'Aguardando Análise'}
+                    </h3>
                     <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                      Preencha os dados da vaga e do currículo ao lado e clique em "Calcular Match" para ver os resultados detalhados.
+                      {loadingMatch
+                        ? 'Comparando o currículo com os requisitos da vaga. Isso pode levar alguns segundos.'
+                        : 'Preencha os dados da vaga e do currículo acima e clique em "Calcular Match" para ver os resultados detalhados.'}
                     </p>
                   </div>
                 ) : (
@@ -390,10 +373,20 @@ const handleMatchAnalysis = () => {
                     <div className="flex items-center justify-between bg-[#090d1a] p-5 rounded-xl border border-slate-800">
                       <div>
                         <span className="text-xs font-semibold text-slate-400 block uppercase">Pontuação ATS Encontrada</span>
-                        <span className="text-3xl font-extrabold text-emerald-400">{matchResult.score}% de Match</span>
+                        <span className={`text-3xl font-extrabold ${
+                          matchResult.score >= 75 ? 'text-emerald-400' : matchResult.score >= 50 ? 'text-amber-400' : 'text-red-400'
+                        }`}>
+                          {matchResult.score}% de Match
+                        </span>
                       </div>
-                      <div className="bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-full text-xs font-bold border border-emerald-500/20">
-                        Compatibilidade Alta
+                      <div className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
+                        matchResult.score >= 75
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : matchResult.score >= 50
+                          ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          : 'bg-red-500/10 text-red-400 border-red-500/20'
+                      }`}>
+                        {matchResult.score >= 75 ? 'Compatibilidade Alta' : matchResult.score >= 50 ? 'Compatibilidade Média' : 'Compatibilidade Baixa'}
                       </div>
                     </div>
 
@@ -404,7 +397,7 @@ const handleMatchAnalysis = () => {
                           <span>Pontos Fortes Identificados</span>
                         </h4>
                         <ul className="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
-                          {matchResult.strengths.map((item, idx) => <li key={idx}>{item}</li>)}
+                          {(matchResult.pontosFortes || []).map((item, idx) => <li key={idx}>{item}</li>)}
                         </ul>
                       </div>
 
@@ -414,13 +407,17 @@ const handleMatchAnalysis = () => {
                           <span>Lacunas a Desenvolver</span>
                         </h4>
                         <ul className="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
-                          {matchResult.gaps.map((item, idx) => <li key={idx}>{item}</li>)}
+                          {(matchResult.lacunas || []).map((g, idx) => (
+                            <li key={idx}>
+                              <strong className="text-amber-300">{g.requisito}:</strong> {g.recomendacao}
+                            </li>
+                          ))}
                         </ul>
                       </div>
                     </div>
 
                     <div className="bg-indigo-950/30 border border-indigo-800/40 p-4 rounded-xl text-xs text-indigo-200">
-                      <strong>Recomendação da IA:</strong> {matchResult.suggestions}
+                      <strong>Recomendação da IA:</strong> {matchResult.recomendacaoFinal}
                     </div>
                   </div>
                 )}
@@ -518,16 +515,14 @@ const handleMatchAnalysis = () => {
             </div>
           )}
 
-          {/* TAB 4: PORTAL EMPRESAS (B2B) - EXATAMENTE COMO NA IMAGEM */}
+          {/* TAB 4: PORTAL EMPRESAS (B2B) */}
           {activeTab === 'batch' && (
             <div className="bg-[#0f1527] border border-slate-800/80 rounded-2xl p-8 sm:p-12 text-center space-y-8">
               
-              {/* ÍCONE DE CADEADO NO TOPO */}
               <div className="w-16 h-16 bg-[#131b31] border border-cyan-500/30 text-cyan-400 rounded-2xl flex items-center justify-center mx-auto shadow-lg shadow-cyan-500/10">
                 <Lock className="w-8 h-8" />
               </div>
 
-              {/* TÍTULOS E BADGE */}
               <div className="space-y-3 max-w-2xl mx-auto">
                 <span className="inline-block bg-purple-950/60 border border-purple-800/50 text-purple-300 text-[11px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
                   RECURSO CORPORATIVO RESTRITO (B2B SAAS)
@@ -542,7 +537,6 @@ const handleMatchAnalysis = () => {
                 </p>
               </div>
 
-              {/* DOIS CARDS INFORMATIVOS */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left max-w-3xl mx-auto pt-2">
                 
                 <div className="bg-[#090d1a] border border-slate-800/90 rounded-2xl p-6 space-y-3 shadow-md">
@@ -567,7 +561,6 @@ const handleMatchAnalysis = () => {
 
               </div>
 
-              {/* BOTÕES DE AÇÃO INFERIORES */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 max-w-xl mx-auto">
                 <button
                   onClick={() => setIsPro(true)}
